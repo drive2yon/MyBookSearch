@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/menu_switch_layout"
+        android:title="2画面←→1画面">
+    </item>
+    <item android:id="@+id/menu_show_recommend_page"
+        android:title="おまかせ図書さがし">
+    </item>
+</menu>
