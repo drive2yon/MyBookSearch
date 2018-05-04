@@ -2,7 +2,6 @@ package com.rydeenworks.mybooksearch;
 
 import android.graphics.Bitmap;
 import android.os.Build;
-import android.util.Log;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;

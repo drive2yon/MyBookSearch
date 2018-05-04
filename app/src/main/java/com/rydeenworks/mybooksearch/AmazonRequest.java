@@ -1,6 +1,7 @@
 package com.rydeenworks.mybooksearch;
 
 
+import android.content.Context;
 import android.os.AsyncTask;
 
 import java.io.BufferedReader;
@@ -19,6 +20,12 @@ import java.util.Map;
  * configuring and running the sample.
  */
 public class AmazonRequest extends AsyncTask<String, Void, String> {
+
+    public final static String AMAZON_REQUEST_TYPE_ITEM_LOOKUP = "ItemLookup";
+    public final static String AMAZON_REQUEST_TYPE_ITEM_SEARCH = "ItemSearch";
+    private Context context;
+    private int requestCount = 0;
+    private final static int REQUEST_RETRY_MAX = 3;
 
     /*
      * Your Access Key ID, as taken from the Your Account page.
@@ -40,8 +47,9 @@ public class AmazonRequest extends AsyncTask<String, Void, String> {
 
     private Listener listener;
 
-    public void Init(String access_key_id, String secret_key, String associate_tag)
+    public void Init(Context context, String access_key_id, String secret_key, String associate_tag)
     {
+        this.context = context;
         ACCESS_KEY_ID = access_key_id;
         SECRET_KEY = secret_key;
         ASSOCIATE_TAG = associate_tag;
@@ -49,17 +57,47 @@ public class AmazonRequest extends AsyncTask<String, Void, String> {
 
     @Override
     protected String doInBackground(String... keyword) {
-        String xml = GetItemXml(keyword[0]);
-        //xml -> html
+        if (keyword.length != 2) {
+            return null;
+        }
+
+        String searchType = keyword[0];
+        String requestUrl = null;
+        if (AMAZON_REQUEST_TYPE_ITEM_LOOKUP.equals(searchType)) {
+            String isbn10 = keyword[1];
+            requestUrl = GetItemLookupRequestUrl(isbn10);
+        } else if (AMAZON_REQUEST_TYPE_ITEM_SEARCH.equals(searchType)) {
+            //NO TESTED
+            String searchWord = keyword[1];
+            requestUrl = GetItemSearchRequestUrl(searchWord);
+        }
+
+        if (requestUrl == null) {
+            return null;
+        }
+        String xml = null;
+        while (requestCount < REQUEST_RETRY_MAX) {
+            requestCount++;
+            xml = GetAmazonRequest(requestUrl);
+            if(xml != null) {
+                break;
+            }
+        }
         return xml;
     }
 
 
     @Override
     protected void onPostExecute(String result) {
-        if (listener != null) {
-            listener.onSuccess(result);
+        if (listener == null || context == null) {
+            return;
         }
+
+        if ( result == null ) {
+            return;
+        }
+
+        listener.onSuccess(context, result);
     }
 
     public void setListener(Listener listener) {
@@ -67,17 +105,16 @@ public class AmazonRequest extends AsyncTask<String, Void, String> {
     }
 
     interface Listener {
-        void onSuccess(String result);
+        //only support ItemLookup
+        void onSuccess(Context context, String result);
     }
 
-
-    protected String GetItemXml(String keyword) {
+    private String GetAmazonRequest(String requestUrl) {
 
         HttpURLConnection httpURLConnection = null;
         BufferedReader bufferedReader = null;
         try{
             // リクエスト処理
-            String requestUrl = getRequestUrl(keyword);
             URL url = new URL(requestUrl);
             httpURLConnection = (HttpURLConnection)url.openConnection();
             String charSet = "UTF-8";
@@ -87,10 +124,9 @@ public class AmazonRequest extends AsyncTask<String, Void, String> {
             bufferedReader = new BufferedReader( inputStreamReader );
 
             // レスポンスのXMLを取得。
-            String oneLine = null;
             String responseXml = "";
             while( true ){
-                oneLine = bufferedReader.readLine();
+                String oneLine = bufferedReader.readLine();
                 // 行がNULLの場合
                 if(oneLine == null){
                     break;
@@ -120,8 +156,32 @@ public class AmazonRequest extends AsyncTask<String, Void, String> {
 
     }
 
+    private String GetItemLookupRequestUrl(String isbn10) {
+        SignedRequestsHelper helper;
 
-    public static String getRequestUrl(String keyword) {
+        try {
+            helper = SignedRequestsHelper.getInstance(ENDPOINT, ACCESS_KEY_ID, SECRET_KEY);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+
+        Map<String, String> params = new HashMap<>();
+
+        params.put("Service", "AWSECommerceService");
+        params.put("Operation", "ItemLookup");
+        params.put("AWSAccessKeyId", ACCESS_KEY_ID);
+        params.put("AssociateTag", ASSOCIATE_TAG);
+        params.put("IdType", "ISBN");
+        params.put("ItemId", isbn10);
+        params.put("SearchIndex", "Books");
+
+        String requestUrl = helper.sign(params);
+        return requestUrl;
+    }
+
+
+    private String GetItemSearchRequestUrl(String keyword) {
 
         /*
          * Set up the signed requests helper.
@@ -135,9 +195,7 @@ public class AmazonRequest extends AsyncTask<String, Void, String> {
             return null;
         }
 
-        String requestUrl = null;
-
-        Map<String, String> params = new HashMap<String, String>();
+        Map<String, String> params = new HashMap<>();
 
         params.put("Service", "AWSECommerceService");
         params.put("Operation", "ItemSearch");
@@ -147,8 +205,7 @@ public class AmazonRequest extends AsyncTask<String, Void, String> {
         params.put("Keywords", keyword);
         params.put("ResponseGroup", "Images,ItemAttributes,Small");
 
-        requestUrl = helper.sign(params);
-
+        String requestUrl = helper.sign(params);
         return requestUrl;
     }
 }

@@ -130,7 +130,7 @@ public class SignedRequestsHelper {
 
         // The parameters need to be processed in lexicographical order, so we'll
         // use a TreeMap implementation for that.
-        SortedMap<String, String> sortedParamMap = new TreeMap<String, String>(params);
+        SortedMap<String, String> sortedParamMap = new TreeMap<>(params);
         
         // get the canonical form the query string
         String canonicalQS = this.canonicalize(sortedParamMap);
@@ -258,7 +258,7 @@ public class SignedRequestsHelper {
      * @return
      */
     private Map<String, String> createParameterMap(String queryString) {
-        Map<String, String> map = new HashMap<String, String>();
+        Map<String, String> map = new HashMap<>();
         String[] pairs = queryString.split("&");
 
         for (String pair: pairs) {

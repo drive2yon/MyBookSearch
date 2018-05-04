@@ -10,26 +10,27 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import static com.rydeenworks.mybooksearch.MainActivity.ViewLayout.*;
 
-public class MainActivity extends AppCompatActivity implements BookLoadEventListner {
+public class MainActivity extends AppCompatActivity implements BookLoadEventListener {
     enum ViewLayout {
         VIEW_LAYOUT_MULTI,
         VIEW_LAYOUT_BOOK,
         VIEW_LAYOUT_CALIL,
     }
-    ViewLayout viewLayout = VIEW_LAYOUT_MULTI;
+    private ViewLayout viewLayout = VIEW_LAYOUT_MULTI;
 
-    WebView bookWebView;
-    WebView calilWebView;
-    BookWebViewClient bookWebViewClient = new BookWebViewClient();
-    CalilWebViewClient calilWebViewClient = new CalilWebViewClient();
-    WebView focusedView;
+    private WebView bookWebView;
+    private WebView calilWebView;
+    private final BookWebViewClient bookWebViewClient = new BookWebViewClient();
+    private final CalilWebViewClient calilWebViewClient = new CalilWebViewClient();
+    private WebView focusedView;
 
-    String lastBookWebUrl;
+    private String lastBookWebUrl;
+
+    private final HistoryPage historyPage = new HistoryPage();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -72,7 +73,7 @@ public class MainActivity extends AppCompatActivity implements BookLoadEventList
         }
     }
 
-    void initBookWebView() {
+    private void initBookWebView() {
         if(bookWebView == null) {
             bookWebView = (WebView) findViewById(R.id.webView_main);
             bookWebView.setWebViewClient(bookWebViewClient);
@@ -100,12 +101,12 @@ public class MainActivity extends AppCompatActivity implements BookLoadEventList
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    void initCalilWebView() {
+    private void initCalilWebView() {
         if(calilWebView == null) {
             calilWebView = (WebView) findViewById(R.id.webView_calil);
             //リンクをタップしたときに標準ブラウザを起動させない
             calilWebView.setWebViewClient(calilWebViewClient);
-            //jacascriptを許可する
+            //javascriptを許可する
             calilWebView.getSettings().setJavaScriptEnabled(true);
             calilWebView.setFocusable(true);
             calilWebView.setFocusableInTouchMode(true);
@@ -128,8 +129,13 @@ public class MainActivity extends AppCompatActivity implements BookLoadEventList
     }
 
     @Override
-    public void OnBookLoad(String bookTitle) {
+    public void OnBookLoad(String bookTitle, String url) {
         if( bookTitle != null ) {
+            //ローカルページは除外
+            if ( bookTitle.contains(getString(R.string.web_page_title) ) ) {
+                return;
+            }
+
             calilWebViewClient.SetFormString(calilWebView, bookTitle);
             Toast toast = Toast.makeText(this, bookTitle, Toast.LENGTH_LONG);
             toast.show();
@@ -139,7 +145,12 @@ public class MainActivity extends AppCompatActivity implements BookLoadEventList
         }
     }
 
-    public void OnViewFocus(View view)
+    @Override
+    public void OnAddAmazonBookHistory(String bookTitle, String isbn10) {
+        historyPage.AddHistory(this, bookTitle, isbn10);
+    }
+
+    private void OnViewFocus(View view)
     {
         if(view == bookWebView) {
             focusedView = (WebView) view;
@@ -162,14 +173,17 @@ public class MainActivity extends AppCompatActivity implements BookLoadEventList
             case R.id.menu_switch_layout:
                 switchLayout();
                 break;
-            case R.id.menu_show_recommend_page:
-                showRecommendPage();
+            case R.id.menu_show_history_page:
+                showHistoryPage();
+                break;
+            case R.id.menu_show_help_page:
+//                showRecommendPage();
                 break;
         }
         return true;
     }
 
-    protected void switchLayout() {
+    private void switchLayout() {
         switch (viewLayout) {
             case VIEW_LAYOUT_MULTI:
                 calilWebView.setVisibility(View.GONE);
@@ -185,24 +199,6 @@ public class MainActivity extends AppCompatActivity implements BookLoadEventList
                 viewLayout = VIEW_LAYOUT_MULTI;
                 break;
         }
-    }
-
-    protected void showRecommendPage() {
-        AmazonRequest request = new AmazonRequest();
-        request.Init(getString(R.string.access_key_id), getString(R.string.secret_access_key), getString(R.string.associate_tag));
-        request.setListener(createListener());
-        request.execute("xamarin");
-    }
-
-    private AmazonRequest.Listener createListener() {
-        return new AmazonRequest.Listener() {
-            @Override
-            public void onSuccess(String html) {
-                if(html != null) {
-//                bookWebView.loadData();
-                }
-            }
-        };
     }
 
     public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -226,5 +222,10 @@ public class MainActivity extends AppCompatActivity implements BookLoadEventList
             }
         }
         return super.onKeyDown(keyCode,  event);
+    }
+
+    private void showHistoryPage() {
+        String htmlString = historyPage.GetWebPage(this);
+        bookWebView.loadData(htmlString, "text/html", "utf-8");
     }
 }
